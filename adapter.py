@@ -135,12 +135,12 @@ class AdaptedCLIP(nn.Module):
         seg_tokens = [
             self.image_adapter["seg_proj"][i](t) for i, t in enumerate(tokens)
         ]
-        seg_tokens = [F.normalize(t, dim=-1) for t in seg_tokens]
+        seg_features = [F.normalize(t, dim=-1) for t in seg_tokens]
         det_feature = self.image_adapter["det_proj"](tokens[-1])
-        det_token = F.normalize(det_feature, dim=-1).mean(1)
-        # print("seg_token",seg_tokens[0].shape) #2x1369x768
-        # print("det_tokn",det_token.shape) #2x768
-        return seg_tokens, det_token,det_feature
+        # det_token = F.normalize(det_feature, dim=-1).mean(1)
+        # print("seg_features.shape",seg_featuress[0].shape) #批量x1369x768
+        # print(" det_feature.shape", det_feature.shape) #批量x768
+        return seg_features, det_feature
 
     #加入适配器的CLIP的文本前向传播
     def encode_text(self, text, adapt_text=True):
