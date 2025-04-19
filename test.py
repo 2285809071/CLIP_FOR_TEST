@@ -64,11 +64,11 @@ def get_predictions(
     file_names = []
     for input_data in tqdm(test_loader):
         image = input_data["image"].to(device)
-        # print("image.shape",image.shape) #32x3x518x518
+        # print("image.shape",image.shape) #批量x3x518x518
         mask = input_data["mask"].cpu().numpy()
-        # print("mask.shape",mask.shape) #32x3x518x518
+        # print("mask.shape",mask.shape) #批量x3x518x518
         label = input_data["label"].cpu().numpy()
-        # print("label.shape",label.shape) #32
+        # print("label.shape",label.shape) #批量
         file_name = input_data["file_name"] 
         # print("file_name",file_name) #
         '''' file_name ['images/208.png', 'images/192.png', 'images/160.png', 'images/171.png', 'images/180.png', 'images/150.png', 
@@ -76,7 +76,7 @@ def get_predictions(
         'images/198.png', 'images/177.png', 'images/175.png', 'images/181.png', 'images/169.png', 'images/163.png', 'images/201.png', '
         images/178.png', 'images/207.png', 'images/158.png', 'images/165.png', 'images/199.png', 'images/172.png', 'images/164.png', 
         'images/176.png', 'images/167.png', 'images/193.png', 'images/185.png', 'images/195.png']'''
-        # print("len(file_name)",len(file_name)) #32
+        # print("len(file_name)",len(file_name)) #批量
         # set up class-specific containers
         class_name = input_data["class_name"]
         # print("class_name",class_name) #CVC-300
@@ -84,51 +84,56 @@ def get_predictions(
         masks.append(mask)
         labels.append(label)
         file_names.extend(file_name)
-        # print("len(file_names)",len(file_names)) #32
+        # print("len(file_names)",len(file_names)) #批量
         # get text 
         epoch_text_feature = class_text_embeddings
         # print("epoch_text_feature",epoch_text_feature.shape) #768x2
         # forward image 
         # 获取分割和检测特征
-        patch_features, det_feature, det_feature_map= model(image)
+        patch_features, det_feature= model(image)
+        # print(" patch_features.shape",patch_features[0].shape) #批量x1369x768
+        # print("det_feature.shape",det_feature.shape) #批量x1369x768
+        det_feature = F.normalize(det_feature, dim=-1).mean(1)
+        # print("det_feature.shape",det_feature.shape) #批量x768
+            
         # print("len(seg_features)",len(patch_features)) # 4
-        # print("seg_feature",patch_features[0].shape) #32x1369x768
-        # print("det_feature",det_feature.shape) #32x768
+        # print("seg_feature",patch_features[0].shape) #批量x1369x768
+        # print("det_feature",det_feature.shape) #批量x768
         # calculate similarity and get prediction
         # cls_preds = []
         #与文本特征计算相似度得到异常分类预测
         pred = det_feature @ epoch_text_feature
-        # print("pred.shape",pred.shape) #32x2
+        # print("pred.shape",pred.shape) #批量x2
         pred = (pred[:, 1] + 1) / 2
-        # print("pred.shape_cated",pred.shape) #32
+        # print("pred.shape_cated",pred.shape) #批量
         preds_image.append(pred.cpu().numpy())
         # print("len(preds_image)",len(preds_image)) #2
         
         patch_preds = []
         for f in patch_features:
             # f: bs,patch_num,768
-            # print("f.shape",f.shape) #32x1369x768
+            # print("f.shape",f.shape) #批量x1369x768
             patch_pred = calculate_similarity_map(
                 f, epoch_text_feature, img_size, test=True, domain=DOMAINS[dataset]
             )
-            # print("patch_pred.shape",patch_pred.shape) #32x1x518x518
+            # print("patch_pred.shape",patch_pred.shape) #批量x1x518x518
             patch_preds.append(patch_pred)
             # print("len(patch_preds)",len(patch_preds)) #4
             
         patch_preds = torch.cat(patch_preds, dim=1).sum(1).cpu().numpy()
-        # print("patch_preds.shape",patch_pred.shape) #32x1x518x518
+        # print("patch_preds.shape",patch_pred.shape) #批量x1x518x518
         
         preds.append(patch_preds)
-        # print("len(patch_preds)",len(patch_preds)) #32
+        # print("len(patch_preds)",len(patch_preds)) #批量
         
     masks = np.concatenate(masks, axis=0)
-    # print("masks.shape",masks.shape) #60x1x518x518
+    # print("masks.shape",masks.shape) #类别总图片数量x1x518x518
     labels = np.concatenate(labels, axis=0)
-    # print("labels.shape",labels.shape) #60
+    # print("labels.shape",labels.shape) #类别总图片数量
     preds = np.concatenate(preds, axis=0)
-    # print("preds.shape",preds.shape) #60x518x518
+    # print("preds.shape",preds.shape) #类别总图片数量x518x518
     preds_image = np.concatenate(preds_image, axis=0)
-    # print("preds_image.shape",preds_image.shape) # 60
+    # print("preds_image.shape",preds_image.shape) # 类别总图片数量
     return masks, labels, preds, preds_image, file_names
 
 

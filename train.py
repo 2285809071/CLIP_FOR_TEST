@@ -142,7 +142,9 @@ def train_image_adapter(
             )
 
             # forward image
-            patch_features, det_feature ,det_feature_map = model(image)
+            patch_features, det_feature = model(image)
+            det_feature = F.normalize(det_feature, dim=-1).mean(1)
+            
             # calculate similarity and get prediction
             loss = 0.0
             det_feature = det_feature.unsqueeze(1)
